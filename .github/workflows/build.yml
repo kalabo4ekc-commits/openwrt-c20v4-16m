@@ -1,0 +1,41 @@
+name: Build OpenWrt 16MB for Archer C20 v4
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git wget unzip file python3
+
+      - name: Download OpenWrt 23.05.5 ImageBuilder
+        run: |
+          wget https://openwrt.org
+          tar -xf openwrt-imagebuilder-*.tar.xz
+
+      - name: Patch DTS and Image Makefile for 16MB
+        run: |
+          cd openwrt-imagebuilder-*
+          # Сдвигаем разделы config и factory в конец 16 МБ (0xfc0000 и 0xff0000) и расширяем firmware до 0xfa0000
+          sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts
+          
+          # Увеличиваем лимит размера прошивки до 16000k и меняем разметку упаковщика на 16Mmtk
+          sed -i '/define Device\/tplink_archer-c20-v4/,/endef/ {
+            s/IMAGE_SIZE := 7808k/IMAGE_SIZE := 16000k/
+            s/TPLINK_FLASHLAYOUT := 8Mmtk/TPLINK_FLASHLAYOUT := 16Mmtk/
+          }' target/linux/ramips/image/mt76x8.mk
+
+      - name: Build 16MB Firmware
+        run: |
+          cd openwrt-imagebuilder-*
+          make image PROFILE="tplink_archer-c20-v4" PACKAGES="luci luci-i18n-base-ru luci-i18n-firewall-ru"
+
+      - name: Upload Firmware Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-c20v4-16mb-firmware
+          path: openwrt-imagebuilder-*/bin/targets/ramips/mt76x8/*sysupgrade.bin
