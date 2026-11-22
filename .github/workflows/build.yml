@@ -16,7 +16,8 @@ jobs:
 
       - name: Clone OpenWrt 23.05.5 sources
         run: |
-          git clone --depth 1 --branch v23.05.5 https://github.com
+          REPO="https://github.com""/openwrt/openwrt.git"
+          git clone --depth 1 --branch v23.05.5 "$REPO"
 
       - name: Update and install feeds
         run: |
