@@ -28,14 +28,34 @@ jobs:
       - name: Patch DTS and Image Makefile for 16MB
         run: |
           cd openwrt
-          # 1. Расширяем раздел firmware и сдвигаем config/factory в конец 16 МБ флеш-памяти в DTS
-          sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts
 
-          # 2. Увеличиваем лимит размера образа до 15872k и используем встроенную разметку 16Mlzma
-          sed -i '/define Device\/tplink_archer-c20-v4/,/endef/ {
-            s/IMAGE_SIZE := 7808k/IMAGE_SIZE := 15872k/
-            s/TPLINK_FLASHLAYOUT := 8Mmtk/TPLINK_FLASHLAYOUT := 16Mlzma/
-          }' target/linux/ramips/image/mt76x8.mk
+          # 1. Расширяем разделы в конце флеш-памяти до 16 МБ.
+          #    Разметка разделов для Archer C20 v4 обычно живёт в общем DTSI-файле,
+          #    но на всякий случай патчим и DTS устройства.
+          for f in target/linux/ramips/dts/mt7628an_tplink_8m.dtsi \
+                   target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts; do
+            if [ -f "$f" ]; then
+              sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' "$f"
+            fi
+          done
+
+          # 2. Форсированно задаём правильные параметры внутри блока устройства:
+          #    - IMAGE_SIZE увеличен под 16 МБ
+          #    - TPLINK_FLASHLAYOUT заменён на корректный для mt76x8 идентификатор 16Mmtk
+          #    (последнее присвоение в блоке перекрывает любые унаследованные значения)
+          awk '
+            /^define Device\/tplink_archer-c20-v4$/ { inblock=1 }
+            inblock && /^endef$/ {
+              print "  IMAGE_SIZE := 15872k"
+              print "  TPLINK_FLASHLAYOUT := 16Mmtk"
+              inblock=0
+            }
+            { print }
+          ' target/linux/ramips/image/mt76x8.mk > mt76x8.mk.new
+          mv mt76x8.mk.new target/linux/ramips/image/mt76x8.mk
+
+          echo "=== Итоговый блок устройства ==="
+          awk '/^define Device\/tplink_archer-c20-v4$/,/^endef$/' target/linux/ramips/image/mt76x8.mk
 
       - name: Configure target and packages
         run: |
