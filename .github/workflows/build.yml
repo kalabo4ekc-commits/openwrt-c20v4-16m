@@ -25,33 +25,17 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Patch DTS, Makefile and mktplinkfw2 for 16MB
+      - name: Patch DTS and Image Makefile for 16MB
         run: |
           cd openwrt
           # 1. Расширяем раздел firmware и сдвигаем config/factory в конец 16 МБ флеш-памяти в DTS
           sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts
 
-          # 2. Увеличиваем лимит размера образа до 16000k и задаём разметку 16Mmtk
+          # 2. Увеличиваем лимит размера образа до 15872k и используем встроенную разметку 16Mlzma
           sed -i '/define Device\/tplink_archer-c20-v4/,/endef/ {
-            s/IMAGE_SIZE := 7808k/IMAGE_SIZE := 16000k/
-            s/TPLINK_FLASHLAYOUT := 8Mmtk/TPLINK_FLASHLAYOUT := 16Mmtk/
+            s/IMAGE_SIZE := 7808k/IMAGE_SIZE := 15872k/
+            s/TPLINK_FLASHLAYOUT := 8Mmtk/TPLINK_FLASHLAYOUT := 16Mlzma/
           }' target/linux/ramips/image/mt76x8.mk
-
-          # 3. Добавляем описание разметки 16Mmtk в исходный код утилиты mktplinkfw2
-          python3 - << 'EOF'
-          path = "tools/firmware-utils/src/mktplinkfw2.c"
-          with open(path, "r") as f:
-              code = f.read()
-          target = '.id\t\t= "8Mmtk",'
-          idx = code.find(target)
-          if idx != -1:
-              end = code.find("},", idx) + 2
-              block = code[code.rfind("{", 0, idx):end]
-              new_block = block.replace('"8Mmtk"', '"16Mmtk"').replace("0x800000", "0x1000000").replace("0x7a0000", "0xfa0000")
-              code = code[:end] + "\n\t" + new_block + code[end:]
-              with open(path, "w") as f:
-                  f.write(code)
-          EOF
 
       - name: Configure target and packages
         run: |
