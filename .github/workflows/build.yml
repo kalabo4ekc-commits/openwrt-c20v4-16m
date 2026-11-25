@@ -52,11 +52,15 @@ jobs:
         run: |
           cd openwrt
 
-          # 1. Расширяем разделы в конце флеш-памяти до 16 МБ.
+          # 1. Расширяем разделы и КРИТИЧЕСКИ ВАЖНО: переносим factory.
+          #    В 8-МБ раскладке factory находится по адресу 0x7d0000.
+          #    Для 16 МБ он должен быть перемещён на 0xfd0000 (сразу после config).
           for f in target/linux/ramips/dts/mt7628an_tplink_8m.dtsi \
                    target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts; do
             if [ -f "$f" ]; then
               sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' "$f"
+              # Переносим factory с 0x7d0000 на 0xfd0000
+              sed -i 's/0x7d0000/0xfd0000/g; s/@7d0000/@fd0000/g' "$f"
             fi
           done
 
@@ -75,6 +79,9 @@ jobs:
           echo "=== Итоговый блок устройства ==="
           awk '/^define Device\/tplink_archer-c20-v4$/,/^endef$/' target/linux/ramips/image/mt76x8.mk
 
+          echo "=== Проверка раздела factory в DTS ==="
+          grep -n -A2 'factory: partition@' target/linux/ramips/dts/mt7628an_tplink_8m.dtsi
+
       - name: Configure target and packages
         run: |
           cd openwrt
@@ -87,6 +94,10 @@ jobs:
           CONFIG_PACKAGE_luci-i18n-firewall-ru=y
           CONFIG_PACKAGE_kmod-nft-queue=y
           CONFIG_PACKAGE_kmod-nfnetlink-queue=y
+          # --- Wi-Fi драйверы (обязательно для 2.4 и 5 ГГц) ---
+          CONFIG_PACKAGE_kmod-mt76=y
+          CONFIG_PACKAGE_kmod-mt76x0e=y
+          CONFIG_PACKAGE_kmod-mt7603=y
           EOF
           make defconfig
 
