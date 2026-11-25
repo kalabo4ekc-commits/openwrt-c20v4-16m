@@ -53,16 +53,40 @@ jobs:
           cd openwrt
 
           # 1. Расширяем разделы и переносим factory с 0x7d0000 на 0xfd0000.
+          #    Этот блок применяется ТОЛЬКО к общему .dtsi и .dts для C20 v4.
           for f in target/linux/ramips/dts/mt7628an_tplink_8m.dtsi \
                    target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts; do
             if [ -f "$f" ]; then
               sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' "$f"
-              # Перенос factory: 0x7d0000 -> 0xfd0000
               sed -i 's/0x7d0000/0xfd0000/g; s/@7d0000/@fd0000/g' "$f"
             fi
           done
 
-          # 2. Форсированно задаём параметры внутри блока устройства
+          # 2. Перенос EEPROM 5 ГГц (MT7610E): 0x28000 -> 0x8000.
+          #    ВАЖНО: применяем ТОЛЬКО к .dts Archer C20 v4, чтобы не затронуть
+          #    другие устройства, использующие общий mt7628an_tplink_8m.dtsi.
+          C20V4_DTS="target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts"
+          if [ -f "$C20V4_DTS" ]; then
+            echo "=== EEPROM-ссылки в .dts ДО замены ==="
+            grep -n "mediatek,mtd-eeprom" "$C20V4_DTS" || true
+
+            # Замена строго внутри ссылки <&factory 0x28000>, чтобы не задеть
+            # другие возможные вхождения 0x28000 (например, в размерах разделов).
+            sed -i 's|<&factory 0x28000>|<&factory 0x8000>|g' "$C20V4_DTS"
+
+            echo "=== EEPROM-ссылки в .dts ПОСЛЕ замены ==="
+            grep -n "mediatek,mtd-eeprom" "$C20V4_DTS" || true
+
+            # Проверка: 0x28000 в .dts больше быть не должно
+            if grep -q "0x28000" "$C20V4_DTS"; then
+              echo "!!! ВНИМАНИЕ: в $C20V4_DTS остались вхождения 0x28000"
+              grep -n "0x28000" "$C20V4_DTS"
+              exit 1
+            fi
+            echo "=== Замена 0x28000 -> 0x8000 в .dts выполнена успешно ==="
+          fi
+
+          # 3. Форсированно задаём параметры внутри блока устройства
           awk '
             /^define Device\/tplink_archer-c20-v4$/ { inblock=1 }
             inblock && /^endef$/ {
