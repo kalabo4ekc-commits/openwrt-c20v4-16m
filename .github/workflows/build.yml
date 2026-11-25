@@ -57,7 +57,7 @@ jobs:
                    target/linux/ramips/dts/mt7628an_tplink_archer-c20-v4.dts; do
             if [ -f "$f" ]; then
               sed -i 's/0x7a0000/0xfa0000/g; s/0x7c0000/0xfc0000/g; s/0x7f0000/0xff0000/g; s/@7c0000/@fc0000/g; s/@7f0000/@ff0000/g' "$f"
-              # Перенос factory: 0x7d0000 -> 0xfd0000 (проверено по инструкциям для C20 v4)
+              # Перенос factory: 0x7d0000 -> 0xfd0000
               sed -i 's/0x7d0000/0xfd0000/g; s/@7d0000/@fd0000/g' "$f"
             fi
           done
@@ -96,6 +96,8 @@ jobs:
           CONFIG_PACKAGE_kmod-mt76=y
           CONFIG_PACKAGE_kmod-mt76x0e=y
           CONFIG_PACKAGE_kmod-mt7603=y
+          # --- Модуль для записи раздела factory (mtd-rw) ---
+          CONFIG_PACKAGE_kmod-mtd-rw=y
           EOF
           make defconfig
 
